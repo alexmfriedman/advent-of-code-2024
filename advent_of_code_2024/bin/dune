@@ -1,0 +1,6 @@
+(executable
+ (public_name advent_of_code_2024)
+ (name main)
+ (libraries advent_of_code_2024 core async)
+ (preprocess
+  (pps ppx_let)))
