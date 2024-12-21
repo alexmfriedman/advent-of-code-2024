@@ -53,12 +53,24 @@ module Location = struct
   ;;
 end
 
-let rec step ~visited ~grid ~loc ~dir =
-  Hash_set.add visited loc;
-  let next_loc = Location.step loc ~dir in
-  match grid.(next_loc.row).(next_loc.col) with
-  | Space.Empty -> step ~visited ~grid ~loc:next_loc ~dir
-  | Obstacle -> step ~visited ~grid ~loc ~dir:(Dir.turn_90 dir)
+let rec has_loop ~n ~visited ~grid ~loc ~dir =
+  (* There are this many spaces, each with 4 directions, so if we've traveled
+  more than this many positions then PHP says we must be in a position we've
+  aleady visited *)
+  if n > Array.length grid * Array.length grid.(0) * 4
+  then true
+  else (
+    Hash_set.add visited loc;
+    let next_loc = Location.step loc ~dir in
+    match grid.(next_loc.row).(next_loc.col) with
+    | Space.Empty -> has_loop ~n:(n + 1) ~visited ~grid ~loc:next_loc ~dir
+    | Obstacle -> has_loop ~n:(n + 1) ~visited ~grid ~loc ~dir:(Dir.turn_90 dir))
+;;
+
+let has_loop ~grid ~loc =
+  let visited = Location.Hash_set.create () in
+  try has_loop ~n:0 ~visited ~grid ~loc ~dir:Up with
+  | _ -> false
 ;;
 
 let run ~filename =
@@ -77,8 +89,14 @@ let run ~filename =
       in
       { Location.row; col })
   in
-  let visited = Location.Hash_set.create () in
-  (try step ~visited ~grid ~loc ~dir:Up with
-   | _ -> ());
-  print_s ([%sexp_of: int] (Hash_set.length visited))
+  let obstacle_count = ref 0 in
+  Array.iteri grid ~f:(fun row spaces ->
+    Array.iteri spaces ~f:(fun col space ->
+      match space with
+      | Obstacle -> ()
+      | Empty ->
+        grid.(row).(col) <- Obstacle;
+        if has_loop ~grid ~loc then obstacle_count := !obstacle_count + 1;
+        grid.(row).(col) <- Empty));
+  print_s ([%sexp_of: int] !obstacle_count)
 ;;
