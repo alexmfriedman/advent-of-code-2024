@@ -16,6 +16,7 @@ let cmd =
        | 2 -> Problem_2.run ~filename
        | 3 -> Problem_3.run ~filename
        | 4 -> Problem_4.run ~filename
+       | 5 -> Problem_5.run ~filename
        | _ -> failwith "Unexpected problem #")
 
 let () = Command_unix.run cmd
