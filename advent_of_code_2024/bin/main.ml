@@ -2,11 +2,10 @@ open! Core
 open! Async
 
 let cmd =
-  Command.async ~summary:""
+  Command.async
+    ~summary:""
     (let%map_open.Command filename =
-       flag "-filename"
-         (required Filename_unix.arg_type)
-         ~doc:"FILENAME Filename"
+       flag "-filename" (required Filename_unix.arg_type) ~doc:"FILENAME Filename"
      and which_problem =
        flag "-which-problem" (required int) ~doc:"INT Which day number"
      in
@@ -18,6 +17,8 @@ let cmd =
        | 4 -> Problem_4.run ~filename
        | 5 -> Problem_5.run ~filename
        | 6 -> Problem_6.run ~filename
+       | 7 -> Problem_7.run ~filename
        | _ -> failwith "Unexpected problem #")
+;;
 
 let () = Command_unix.run cmd
