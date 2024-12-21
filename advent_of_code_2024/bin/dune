@@ -3,4 +3,4 @@
  (name main)
  (libraries advent_of_code_2024 core async)
  (preprocess
-  (pps ppx_let)))
+  (pps ppx_compare ppx_expect ppx_let)))

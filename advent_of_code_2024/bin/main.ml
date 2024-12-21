@@ -13,6 +13,7 @@ let cmd =
      fun () ->
        match which_problem with
        | 1 -> Problem_1.run ~filename
+       | 2 -> Problem_2.run ~filename
        | _ -> failwith "Unexpected problem #")
 
 let () = Command_unix.run cmd
