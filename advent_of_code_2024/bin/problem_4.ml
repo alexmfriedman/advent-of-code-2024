@@ -3,31 +3,21 @@ open! Async
 
 module Dir = struct
   module T = struct
-    type t = { row' : int; col' : int } [@@deriving compare]
+    type t = { row' : int; col' : int } [@@deriving compare, sexp_of]
   end
 
   include T
-
-  include Comparable.Make_plain (struct
-    include T
-
-    let sexp_of_t _t = Sexp.unit
-  end)
+  include Comparable.Make_plain (T)
 end
 
 module Solution = struct
   module T = struct
     type t = { row : int; col : int; dir1 : Dir.t; dir2 : Dir.t }
-    [@@deriving compare]
+    [@@deriving compare, sexp_of]
   end
 
   include T
-
-  include Comparable.Make_plain (struct
-    include T
-
-    let sexp_of_t _t = Sexp.unit
-  end)
+  include Comparable.Make_plain (T)
 
   let create ~row ~col ~dir1 ~dir2 =
     let dir1, dir2 = (Dir.min dir1 dir2, Dir.max dir1 dir2) in
