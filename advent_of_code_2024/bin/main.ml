@@ -18,6 +18,7 @@ let cmd =
        | 5 -> Problem_5.run ~filename
        | 6 -> Problem_6.run ~filename
        | 7 -> Problem_7.run ~filename
+       | 8 -> Problem_8.run ~filename
        | _ -> failwith "Unexpected problem #")
 ;;
 
