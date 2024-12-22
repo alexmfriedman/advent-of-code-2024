@@ -1,6 +1,21 @@
 open! Core
 open! Async
 
+let solutions =
+  [ Problem_1.run
+  ; Problem_2.run
+  ; Problem_3.run
+  ; Problem_4.run
+  ; Problem_5.run
+  ; Problem_6.run
+  ; Problem_7.run
+  ; Problem_8.run
+  ; Problem_9.run
+  ; Problem_10.run
+  ; Problem_11.run
+  ]
+;;
+
 let cmd =
   Command.async
     ~summary:""
@@ -9,19 +24,7 @@ let cmd =
      and which_problem =
        flag "-which-problem" (required int) ~doc:"INT Which day number"
      in
-     fun () ->
-       match which_problem with
-       | 1 -> Problem_1.run ~filename
-       | 2 -> Problem_2.run ~filename
-       | 3 -> Problem_3.run ~filename
-       | 4 -> Problem_4.run ~filename
-       | 5 -> Problem_5.run ~filename
-       | 6 -> Problem_6.run ~filename
-       | 7 -> Problem_7.run ~filename
-       | 8 -> Problem_8.run ~filename
-       | 9 -> Problem_9.run ~filename
-       | 10 -> Problem_10.run ~filename
-       | _ -> failwith "Unexpected problem #")
+     fun () -> (List.nth_exn solutions (which_problem - 1)) ~filename)
 ;;
 
 let () = Command_unix.run cmd
