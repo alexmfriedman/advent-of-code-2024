@@ -16,12 +16,8 @@ module Tree = struct
     [@@deriving hash, compare, sexp_of]
   end
 
-  module T' = struct
-    include T
-    include Hashable.Make_plain (T)
-  end
-
-  include T'
+  include T
+  include Hashable.Make_plain (T)
 
   module Pair = struct
     module T = struct
@@ -40,12 +36,6 @@ module Tree = struct
     Memo.general ~hashable:Int.Table.hashable (fun i -> create_singleton i)
   ;;
 
-  let rec to_list { base; _ } =
-    match base with
-    | Leaf stone -> [ stone ]
-    | Split (t1, t2) -> to_list t1 @ to_list t2
-  ;;
-
   let create_split =
     Memo.general ~hashable:Pair.Table.hashable (fun (t1, t2) ->
       { base = Split (t1, t2)
@@ -53,8 +43,6 @@ module Tree = struct
       ; size = t1.size + t2.size
       })
   ;;
-
-  let () = ignore to_list
 
   let step =
     Memo.recursive ~hashable:Table.hashable (fun step t ->
