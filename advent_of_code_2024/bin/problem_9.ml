@@ -2,11 +2,7 @@ open! Core
 open! Async
 
 module Disk = struct
-  type t =
-    { disk : int option array
-    ; mutable start_free_search_at : int
-    }
-  [@@deriving sexp_of]
+  type t = { disk : int option array } [@@deriving sexp_of]
 
   let create ~disk_map =
     let disk =
@@ -25,24 +21,35 @@ module Disk = struct
             (Array.create ~len:free_space_size None))
       |> Array.concat
     in
-    { disk; start_free_search_at = 0 }
+    { disk }
   ;;
 
-  let move_to_first_free_exn t ~idx =
-    let rec loop () =
-      if idx < t.start_free_search_at
-      then ()
-      else (
-        match t.disk.(t.start_free_search_at) with
-        | None ->
-          t.disk.(t.start_free_search_at) <- t.disk.(idx);
-          t.disk.(idx) <- None;
-          t.start_free_search_at <- t.start_free_search_at + 1
-        | Some _ ->
-          t.start_free_search_at <- t.start_free_search_at + 1;
-          loop ())
+  let rec has_k_spaces_free_at_idx t ~idx ~k =
+    if k = 0
+    then true
+    else
+      Option.is_none t.disk.(idx) && has_k_spaces_free_at_idx t ~idx:(idx + 1) ~k:(k - 1)
+  ;;
+
+  let insert_at_first_location_with_k_spaces_free t ~k ~first_file_id_idx ~file_id =
+    let rec loop idx =
+      if idx + k <= first_file_id_idx
+      then
+        if has_k_spaces_free_at_idx t ~idx ~k
+        then
+          for i = 0 to k - 1 do
+            t.disk.(idx + i) <- Some file_id;
+            t.disk.(first_file_id_idx + i) <- None
+          done
+        else loop (idx + 1)
     in
-    loop ()
+    loop 0
+  ;;
+
+  let rec file_id_length t ~file_id idx =
+    if idx < Array.length t.disk && Option.exists t.disk.(idx) ~f:(Int.equal file_id)
+    then 1 + file_id_length t ~file_id (idx + 1)
+    else 0
   ;;
 end
 
@@ -50,10 +57,20 @@ let run ~filename =
   let%map disk_map = Reader.file_lines filename >>| List.hd_exn in
   let disk = Disk.create ~disk_map in
   let idx = ref (Array.length disk.disk - 1) in
-  while !idx >= 0 && !idx > disk.start_free_search_at do
+  let next_file_id = ref (disk.disk.(!idx) |> Option.value_exn) in
+  while !idx > 0 do
     (match disk.disk.(!idx) with
-     | None -> ()
-     | Some _file_id -> Disk.move_to_first_free_exn disk ~idx:!idx);
+     | Some file_id
+       when Int.equal !next_file_id file_id
+            && not (Option.exists disk.disk.(!idx - 1) ~f:(Int.equal !next_file_id)) ->
+       let file_id_length = Disk.file_id_length disk ~file_id !idx in
+       Disk.insert_at_first_location_with_k_spaces_free
+         disk
+         ~k:file_id_length
+         ~first_file_id_idx:!idx
+         ~file_id;
+       next_file_id := !next_file_id - 1
+     | _ -> ());
     idx := !idx - 1
   done;
   let result =
