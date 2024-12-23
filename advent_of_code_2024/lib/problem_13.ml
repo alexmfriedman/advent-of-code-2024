@@ -43,6 +43,7 @@ let _optimize_prize ~button_a ~button_b ~prize =
   |> List.min_elt ~compare:Int.compare
 ;;
 
+(* NB: This doesn't work if the lines have the same slope *)
 let optimize_prize ~(button_a : X_y.t) ~(button_b : X_y.t) ~(prize : X_y.t) =
   let x' =
     let open Float in
