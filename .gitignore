@@ -1,3 +1,4 @@
 advent_of_code_2024/dune-project
 advent_of_code_2024/_build/
+advent_of_code_2024/lib/problem_12.ml
 .DS_Store
