@@ -1,5 +1,6 @@
 open! Core
 open! Async
+open Advent_of_code_2024
 
 let solutions =
   [ Problem_1.run
@@ -13,6 +14,7 @@ let solutions =
   ; Problem_9.run
   ; Problem_10.run
   ; Problem_11.run
+  ; Problem_12.run
   ]
 ;;
 
