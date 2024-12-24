@@ -9,3 +9,5 @@ type t =
 
 include Comparable.S_plain with type t := t
 include Hashable.S_plain with type t := t
+
+val add_delta : t -> row':int -> col':int -> t
