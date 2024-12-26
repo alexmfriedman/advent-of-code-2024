@@ -5,6 +5,7 @@
   (pps
    ppx_compare
    ppx_custom_printf
+   ppx_enumerate
    ppx_expect
    ppx_hash
    ppx_here

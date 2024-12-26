@@ -19,8 +19,6 @@ module Registers = struct
   [@@deriving sexp_of]
 end
 
-(* let distinct_mod_set = Int.Hash_set.create () *)
-
 let run_program ~(registers : Registers.t) ~program =
   let rec loop instruction_pointer =
     if instruction_pointer < Array.length program
