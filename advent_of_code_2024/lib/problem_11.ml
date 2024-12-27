@@ -11,6 +11,7 @@ module Tree = struct
     and t =
       { base : base [@hash.ignore] [@compare.ignore]
       ; uuid : Uuid.t
+        (* NB: Not sure why I used a UUID here lol, I think a simple counter would be fine. *)
       ; size : int [@hash.ignore] [@compare.ignore]
       }
     [@@deriving hash, compare, sexp_of]
