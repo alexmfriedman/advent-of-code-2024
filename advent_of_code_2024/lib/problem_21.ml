@@ -1,7 +1,7 @@
 open! Core
 open! Async
 
-let num_robots = 25
+let num_robots = 2
 
 module Move = struct
   type t =
@@ -153,43 +153,54 @@ module State = struct
 
   let push_button t ~target ~(next_human_button_press : Directional_keypad.t) : t option =
     let open Option.Let_syntax in
-    let rec apply_at_position idx (next_button_press : Directional_keypad.t) =
-      if idx = num_robots
-      then (
-        match next_button_press with
-        | Move move ->
-          let%map robot_numeric_keypad' =
-            Numeric_keypad.apply_move_to_robot_hand t.robot_numeric_keypad ~move
-          in
-          { t with robot_numeric_keypad = robot_numeric_keypad' }
-        | A ->
-          let char_pressed = Numeric_keypad.to_char t.robot_numeric_keypad in
-          if
-            Char.equal
-              (String.get target t.num_correct_numeric_keypad_entries)
-              char_pressed
-          then
-            Some
-              { t with
-                num_correct_numeric_keypad_entries =
-                  t.num_correct_numeric_keypad_entries + 1
-              }
-          else None)
-      else (
-        let robot_directional_keypad = List.nth_exn t.robot_directional_keypads idx in
-        match next_button_press with
-        | Move move ->
-          let%map robot_directional_keypad' =
-            Directional_keypad.apply_move_to_robot_hand robot_directional_keypad ~move
-          in
-          let robot_directional_keypads' =
-            List.mapi t.robot_directional_keypads ~f:(fun i e ->
-              if i = idx then robot_directional_keypad' else e)
-          in
-          { t with robot_directional_keypads = robot_directional_keypads' }
-        | A -> apply_at_position (idx + 1) robot_directional_keypad)
+    let rec apply_at_position (next_button_press : Directional_keypad.t) = function
+      | [] ->
+        (match next_button_press with
+         | Move move ->
+           let%map robot_numeric_keypad' =
+             Numeric_keypad.apply_move_to_robot_hand t.robot_numeric_keypad ~move
+           in
+           robot_numeric_keypad', [], t.num_correct_numeric_keypad_entries
+         | A ->
+           let char_pressed = Numeric_keypad.to_char t.robot_numeric_keypad in
+           if
+             Char.equal
+               (String.get target t.num_correct_numeric_keypad_entries)
+               char_pressed
+           then Some (t.robot_numeric_keypad, [], t.num_correct_numeric_keypad_entries + 1)
+           else None)
+      | robot_directional_keypad :: robot_directional_keypads ->
+        (match next_button_press with
+         | Directional_keypad.Move move ->
+           let%map robot_directional_keypad' =
+             Directional_keypad.apply_move_to_robot_hand robot_directional_keypad ~move
+           in
+           ( t.robot_numeric_keypad
+           , robot_directional_keypad' :: robot_directional_keypads
+           , t.num_correct_numeric_keypad_entries )
+         | A ->
+           let%map
+               ( robot_numeric_keypad
+               , robot_directional_keypads
+               , num_correct_numeric_keypad_entries )
+             =
+             apply_at_position robot_directional_keypad robot_directional_keypads
+           in
+           ( robot_numeric_keypad
+           , robot_directional_keypad :: robot_directional_keypads
+           , num_correct_numeric_keypad_entries ))
     in
-    apply_at_position 0 next_human_button_press
+    let%map
+        ( robot_numeric_keypad
+        , robot_directional_keypads
+        , num_correct_numeric_keypad_entries )
+      =
+      apply_at_position next_human_button_press t.robot_directional_keypads
+    in
+    { robot_numeric_keypad
+    ; robot_directional_keypads
+    ; num_correct_numeric_keypad_entries
+    }
   ;;
 end
 
@@ -206,9 +217,10 @@ let bfs_state_space target =
     else (
       Hash_set.strict_add_exn visited state;
       List.iter Directional_keypad.all ~f:(fun next_human_button_press ->
-        Option.iter
-          (State.push_button state ~target ~next_human_button_press)
-          ~f:(fun state' -> Queue.enqueue queue (state', num_presses + 1)));
+        State.push_button state ~target ~next_human_button_press
+        |> Option.iter ~f:(fun state' ->
+          if not (Hash_set.mem visited state')
+          then Queue.enqueue queue (state', num_presses + 1)));
       loop ())
   in
   loop ()
@@ -224,7 +236,7 @@ let run ~filename =
         let num_presses = bfs_state_space target in
         let numeric_code = String.drop_suffix target 1 |> Int.of_string in
         let result = num_presses * numeric_code in
-        print_s ([%sexp_of: int * int * int] (num_presses, numeric_code, result));
+        Core.print_s ([%sexp_of: int * int * int] (num_presses, numeric_code, result));
         result)
   in
   print_s ([%sexp_of: int] num_presses)
