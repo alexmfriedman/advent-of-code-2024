@@ -1,7 +1,8 @@
 open! Core
 open! Async
 
-let num_robots = 2
+let num_directional_robots = 25
+let _code_length = 4
 
 module Move = struct
   type t =
@@ -9,7 +10,22 @@ module Move = struct
     | Down
     | Left
     | Right
-  [@@deriving equal, compare, hash, sexp_of, enumerate]
+  [@@deriving equal, compare, hash, sexp_of, enumerate, variants]
+
+  let of_int = function
+    | 0 -> Up
+    | 1 -> Down
+    | 2 -> Left
+    | 3 -> Right
+    | _ -> failwith "unreachable"
+  ;;
+
+  let to_int = function
+    | Up -> 0
+    | Down -> 1
+    | Left -> 2
+    | Right -> 3
+  ;;
 end
 
 module Numeric_keypad = struct
@@ -25,9 +41,9 @@ module Numeric_keypad = struct
     | Num_7
     | Num_8
     | Num_9
-  [@@deriving equal, compare, hash, sexp_of, enumerate]
+  [@@deriving equal, compare, hash, sexp_of, enumerate, variants]
 
-  let to_char = function
+  let _to_char = function
     | A -> 'A'
     | Num_0 -> '0'
     | Num_1 -> '1'
@@ -41,7 +57,7 @@ module Numeric_keypad = struct
     | Num_9 -> '9'
   ;;
 
-  let _of_char = function
+  let of_char = function
     | 'A' -> A
     | '0' -> Num_0
     | '1' -> Num_1
@@ -91,6 +107,22 @@ module Numeric_keypad = struct
     in
     Grid_location.add_delta (to_grid_location t) ~row' ~col' |> of_grid_location
   ;;
+
+  let optimal_moves_from_prev ~prev t =
+    let { Grid_location.row; col } = to_grid_location t in
+    let { Grid_location.row = prev_row; col = prev_col } = to_grid_location prev in
+    let row', col' = row - prev_row, col - prev_col in
+    let vertical = if row' < 0 then Move.Up else Down in
+    let vertical = List.init (Int.abs row') ~f:(Fn.const vertical) in
+    let horizontal = if col' > 0 then Move.Right else Left in
+    let horizontal = List.init (Int.abs col') ~f:(Fn.const horizontal) in
+    [ vertical @ horizontal; horizontal @ vertical ]
+    |> List.filter ~f:(fun moves ->
+      List.fold_result moves ~init:prev ~f:(fun prev move ->
+        let next = apply_move_to_robot_hand prev ~move in
+        Result.of_option next ~error:())
+      |> Result.is_ok)
+  ;;
 end
 
 module Directional_keypad = struct
@@ -98,6 +130,18 @@ module Directional_keypad = struct
     | Move of Move.t
     | A
   [@@deriving equal, compare, hash, sexp_of, enumerate]
+
+  let _of_int i =
+    match i with
+    | 0 | 1 | 2 | 3 -> Move (Move.of_int i)
+    | 4 -> A
+    | _ -> failwith "unreachable"
+  ;;
+
+  let _to_int = function
+    | Move move -> Move.to_int move
+    | A -> 4
+  ;;
 
   let to_grid_location t =
     let row, col =
@@ -128,102 +172,89 @@ module Directional_keypad = struct
     in
     Grid_location.add_delta (to_grid_location t) ~row' ~col' |> of_grid_location
   ;;
+
+  let optimal_moves_from_prev ~prev t =
+    let { Grid_location.row; col } = to_grid_location t in
+    let { Grid_location.row = prev_row; col = prev_col } = to_grid_location prev in
+    let row', col' = row - prev_row, col - prev_col in
+    let vertical = if row' < 0 then Move.Up else Down in
+    let vertical = List.init (Int.abs row') ~f:(Fn.const vertical) in
+    let horizontal = if col' > 0 then Move.Right else Left in
+    let horizontal = List.init (Int.abs col') ~f:(Fn.const horizontal) in
+    [ vertical @ horizontal; horizontal @ vertical ]
+    |> List.filter ~f:(fun moves ->
+      List.fold_result moves ~init:prev ~f:(fun prev move ->
+        let next = apply_move_to_robot_hand prev ~move in
+        Result.of_option next ~error:())
+      |> Result.is_ok)
+  ;;
 end
 
-module State = struct
+module Dp_input = struct
   module T = struct
     type t =
-      { robot_numeric_keypad : Numeric_keypad.t
-      ; (* Apparently you can't hash arrays *)
-        robot_directional_keypads : Directional_keypad.t List.t
-      ; num_correct_numeric_keypad_entries : int
+      { moves : Move.t list
+      ; num_robot_levels_remaining : int
       }
     [@@deriving equal, compare, hash, sexp_of]
   end
 
   include T
   include Hashable.Make_plain (T)
-
-  let empty =
-    { robot_numeric_keypad = Numeric_keypad.A
-    ; robot_directional_keypads = List.init num_robots ~f:(Fn.const Directional_keypad.A)
-    ; num_correct_numeric_keypad_entries = 0
-    }
-  ;;
-
-  let push_button t ~target ~(next_human_button_press : Directional_keypad.t) : t option =
-    let open Option.Let_syntax in
-    let rec apply_at_position (next_button_press : Directional_keypad.t) = function
-      | [] ->
-        (match next_button_press with
-         | Move move ->
-           let%map robot_numeric_keypad' =
-             Numeric_keypad.apply_move_to_robot_hand t.robot_numeric_keypad ~move
-           in
-           robot_numeric_keypad', [], t.num_correct_numeric_keypad_entries
-         | A ->
-           let char_pressed = Numeric_keypad.to_char t.robot_numeric_keypad in
-           if
-             Char.equal
-               (String.get target t.num_correct_numeric_keypad_entries)
-               char_pressed
-           then Some (t.robot_numeric_keypad, [], t.num_correct_numeric_keypad_entries + 1)
-           else None)
-      | robot_directional_keypad :: robot_directional_keypads ->
-        (match next_button_press with
-         | Directional_keypad.Move move ->
-           let%map robot_directional_keypad' =
-             Directional_keypad.apply_move_to_robot_hand robot_directional_keypad ~move
-           in
-           ( t.robot_numeric_keypad
-           , robot_directional_keypad' :: robot_directional_keypads
-           , t.num_correct_numeric_keypad_entries )
-         | A ->
-           let%map
-               ( robot_numeric_keypad
-               , robot_directional_keypads
-               , num_correct_numeric_keypad_entries )
-             =
-             apply_at_position robot_directional_keypad robot_directional_keypads
-           in
-           ( robot_numeric_keypad
-           , robot_directional_keypad :: robot_directional_keypads
-           , num_correct_numeric_keypad_entries ))
-    in
-    let%map
-        ( robot_numeric_keypad
-        , robot_directional_keypads
-        , num_correct_numeric_keypad_entries )
-      =
-      apply_at_position next_human_button_press t.robot_directional_keypads
-    in
-    { robot_numeric_keypad
-    ; robot_directional_keypads
-    ; num_correct_numeric_keypad_entries
-    }
-  ;;
 end
 
-let bfs_state_space target =
-  let queue = Queue.create () in
-  Queue.enqueue queue (State.empty, 0);
-  let visited = State.Hash_set.create () in
-  let rec loop () =
-    let state, num_presses = Queue.dequeue_exn queue in
-    if state.num_correct_numeric_keypad_entries = 4
-    then num_presses
-    else if Hash_set.mem visited state
-    then loop ()
-    else (
-      Hash_set.strict_add_exn visited state;
-      List.iter Directional_keypad.all ~f:(fun next_human_button_press ->
-        State.push_button state ~target ~next_human_button_press
-        |> Option.iter ~f:(fun state' ->
-          if not (Hash_set.mem visited state')
-          then Queue.enqueue queue (state', num_presses + 1)));
-      loop ())
-  in
-  loop ()
+let num_presses_to_move_at_level_and_reset_to_a =
+  Memo.recursive
+    ~hashable:Dp_input.hashable
+    (fun
+        num_presses_to_move_at_level_and_reset_to_a
+         { moves; num_robot_levels_remaining }
+       ->
+       match Int.compare num_robot_levels_remaining 0 |> Ordering.of_int with
+       | Less -> failwith "unreachable"
+       | Equal ->
+         List.length moves
+         +
+         (* Press a *)
+         1
+       | Greater ->
+         let prev, min_moves =
+           List.fold
+             moves
+             ~init:(Directional_keypad.A, 0)
+             ~f:(fun (prev, total_moves) curr ->
+               let curr = Directional_keypad.Move curr in
+               if Directional_keypad.equal prev curr
+               then
+                 (* If we're already at the button we need to press, just push A *)
+                 curr, 1 + total_moves
+               else (
+                 let num_moves =
+                   Directional_keypad.optimal_moves_from_prev ~prev curr
+                   |> List.map ~f:(fun moves ->
+                     num_presses_to_move_at_level_and_reset_to_a
+                       { Dp_input.moves
+                       ; num_robot_levels_remaining = num_robot_levels_remaining - 1
+                       })
+                   |> List.min_elt ~compare:Int.compare
+                   |> Option.value_exn
+                 in
+                 curr, num_moves + total_moves))
+         in
+         let to_reset =
+           let num_moves =
+             Directional_keypad.optimal_moves_from_prev ~prev A
+             |> List.map ~f:(fun moves ->
+               num_presses_to_move_at_level_and_reset_to_a
+                 { Dp_input.moves
+                 ; num_robot_levels_remaining = num_robot_levels_remaining - 1
+                 })
+             |> List.min_elt ~compare:Int.compare
+             |> Option.value_exn
+           in
+           num_moves
+         in
+         min_moves + to_reset)
 ;;
 
 let run ~filename =
@@ -233,11 +264,24 @@ let run ~filename =
       (module Int)
       codes
       ~f:(fun target ->
-        let num_presses = bfs_state_space target in
-        let numeric_code = String.drop_suffix target 1 |> Int.of_string in
-        let result = num_presses * numeric_code in
-        Core.print_s ([%sexp_of: int * int * int] (num_presses, numeric_code, result));
-        result)
+        let sum = ref 0 in
+        String.iteri target ~f:(fun i c ->
+          let prev =
+            if i = 0
+            then Numeric_keypad.A
+            else String.get target (i - 1) |> Numeric_keypad.of_char
+          in
+          let optimal_count =
+            Numeric_keypad.optimal_moves_from_prev ~prev (Numeric_keypad.of_char c)
+            |> List.map ~f:(fun moves ->
+              num_presses_to_move_at_level_and_reset_to_a
+                { Dp_input.moves; num_robot_levels_remaining = num_directional_robots })
+            |> List.min_elt ~compare:Int.compare
+            |> Option.value_exn
+          in
+          let prefix = String.drop_suffix target 1 |> Int.of_string in
+          sum := !sum + (optimal_count * prefix));
+        !sum)
   in
   print_s ([%sexp_of: int] num_presses)
 ;;
