@@ -2,7 +2,6 @@ open! Core
 open! Async
 
 let num_directional_robots = 25
-let _code_length = 4
 
 module Move = struct
   type t =
@@ -11,21 +10,6 @@ module Move = struct
     | Left
     | Right
   [@@deriving equal, compare, hash, sexp_of, enumerate, variants]
-
-  let of_int = function
-    | 0 -> Up
-    | 1 -> Down
-    | 2 -> Left
-    | 3 -> Right
-    | _ -> failwith "unreachable"
-  ;;
-
-  let to_int = function
-    | Up -> 0
-    | Down -> 1
-    | Left -> 2
-    | Right -> 3
-  ;;
 end
 
 module Numeric_keypad = struct
@@ -42,20 +26,6 @@ module Numeric_keypad = struct
     | Num_8
     | Num_9
   [@@deriving equal, compare, hash, sexp_of, enumerate, variants]
-
-  let _to_char = function
-    | A -> 'A'
-    | Num_0 -> '0'
-    | Num_1 -> '1'
-    | Num_2 -> '2'
-    | Num_3 -> '3'
-    | Num_4 -> '4'
-    | Num_5 -> '5'
-    | Num_6 -> '6'
-    | Num_7 -> '7'
-    | Num_8 -> '8'
-    | Num_9 -> '9'
-  ;;
 
   let of_char = function
     | 'A' -> A
@@ -130,18 +100,6 @@ module Directional_keypad = struct
     | Move of Move.t
     | A
   [@@deriving equal, compare, hash, sexp_of, enumerate]
-
-  let _of_int i =
-    match i with
-    | 0 | 1 | 2 | 3 -> Move (Move.of_int i)
-    | 4 -> A
-    | _ -> failwith "unreachable"
-  ;;
-
-  let _to_int = function
-    | Move move -> Move.to_int move
-    | A -> 4
-  ;;
 
   let to_grid_location t =
     let row, col =
