@@ -11,4 +11,5 @@
    ppx_here
    ppx_let
    ppx_sexp_conv
-   ppx_string_conv)))
+   ppx_string_conv
+   ppx_variants_conv)))
