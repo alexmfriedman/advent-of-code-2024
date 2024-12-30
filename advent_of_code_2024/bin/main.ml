@@ -27,6 +27,7 @@ let solutions =
   ; Problem_22.run
   ; Problem_23.run
   ; Problem_24.run
+  ; Problem_25.run
   ]
 ;;
 
